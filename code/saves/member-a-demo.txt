@@ -1,4 +1,0 @@
-ROWS|3
-ITEM|1|0|ANIMAL|小牛|2|平静|1
-ITEM|1|1|PLANT|玉米|1|成长中|0
-ITEM|2|0|TOOL|水壶|3|可用|0

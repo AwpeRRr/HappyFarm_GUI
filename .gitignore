@@ -1,0 +1,47 @@
+# ============ 本项目 ============
+# 编译产物
+code/out/
+*.class
+# 存档（运行时数据）
+code/saves/
+# 文档（docx / 设计说明等，按需取消注释保留）
+*.docx
+图形化农场对象管理系统两人开发分工方案.md
+成员A任务标准测试结果.md
+code/成员A接口与存档格式说明.md
+code/成员B说明与编译运行文档.md
+
+# ============ Java ============
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+target/
+build/
+bin/
+
+# ============ macOS ============
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ============ VS Code ============
+.vscode/
+*.code-workspace
+
+# ============ JetBrains (IntelliJ IDEA 等) ============
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ============ 其它 ============
+*.log
+*.tmp
+
+# ============ Claude Code ============
+.claude/
