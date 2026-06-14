@@ -67,6 +67,8 @@ public class FarmGUI extends JFrame {
     private Farm farm;
     /** 存档管理器，由启动类注入。 */
     private final SaveManager saveManager;
+    /** 当前关联的存档路径：从该存档读进来或存过一次后就有值，保存时默认存回这里。null 表示还没存过。 */
+    private Path currentSavePath;
 
     // ===== 左栏输入组件 =====
     private JComboBox<String> typeComboBox;
@@ -83,6 +85,7 @@ public class FarmGUI extends JFrame {
     private JButton deleteButton;
     private JButton clearButton;
     private JButton saveButton;
+    private JButton saveAsButton;
     private JButton loadButton;
     private JButton sortByTypeButton;
     private JButton sortByPriorityButton;
@@ -99,9 +102,15 @@ public class FarmGUI extends JFrame {
     private JTextArea resultArea;
 
     public FarmGUI(Farm farm, SaveManager saveManager) {
+        this(farm, saveManager, null);
+    }
+
+    /** 带初始存档路径的构造器：从已有存档读进来时传入，保存时默认存回它。 */
+    public FarmGUI(Farm farm, SaveManager saveManager, Path currentSavePath) {
         super("快乐农场对象管理系统");
         this.farm = farm;
         this.saveManager = saveManager;
+        this.currentSavePath = currentSavePath;
         initComponents();
         bindEvents();
         refreshFarmPanel();
@@ -113,7 +122,9 @@ public class FarmGUI extends JFrame {
         setSize(1080, 740);
         setMinimumSize(new Dimension(900, 640));
         setLocationRelativeTo(null);
+        setIconImages(UiKit.emojiIcons("🌻")); // 窗口/任务栏图标用个 emoji
         setLayout(new BorderLayout(8, 8));
+        getContentPane().setBackground(new Color(0xF4F6F8));
 
         add(buildLeftPanel(), BorderLayout.WEST);
         add(buildFarmPanel(), BorderLayout.CENTER);
@@ -154,16 +165,36 @@ public class FarmGUI extends JFrame {
         JPanel actions = new JPanel(new GridLayout(0, 2, 6, 6));
         actions.setBorder(BorderFactory.createTitledBorder("操作"));
 
-        initButton = new JButton("初始化农场");
-        addButton = new JButton("添加对象");
-        queryButton = new JButton("查询");
-        careButton = new JButton("照料");
-        deleteButton = new JButton("删除");
-        clearButton = new JButton("清空农场");
-        saveButton = new JButton("保存游戏");
-        loadButton = new JButton("读取存档");
-        sortByTypeButton = new JButton("按类别排序");
-        sortByPriorityButton = new JButton("按优先级排序");
+        initButton = new JButton("🌱 初始化农场");
+        addButton = new JButton("➕ 添加对象");
+        queryButton = new JButton("🔍 查询");
+        careButton = new JButton("💖 照料");
+        deleteButton = new JButton("🗑 删除");
+        clearButton = new JButton("🧹 清空农场");
+        saveButton = new JButton("💾 保存游戏");
+        saveAsButton = new JButton("📑 另存为");
+        loadButton = new JButton("📂 读取存档");
+        sortByTypeButton = new JButton("🏷 按类别排序");
+        sortByPriorityButton = new JButton("⭐ 按优先级排序");
+
+        // 按功能上色：绿=新建/添加，蓝=查询/读取，粉=照料，橙=排序，红=删除/清空，灰=保存
+        Color green = new Color(0x3FAE6B);
+        Color blue = new Color(0x4F8FD0);
+        Color pink = new Color(0xE8607A);
+        Color orange = new Color(0xE0913A);
+        Color red = new Color(0xC65B5B);
+        Color gray = new Color(0x6B7280);
+        UiKit.styleButton(initButton, green);
+        UiKit.styleButton(addButton, green);
+        UiKit.styleButton(queryButton, blue);
+        UiKit.styleButton(careButton, pink);
+        UiKit.styleButton(deleteButton, red);
+        UiKit.styleButton(clearButton, red);
+        UiKit.styleButton(saveButton, gray);
+        UiKit.styleButton(saveAsButton, gray);
+        UiKit.styleButton(loadButton, blue);
+        UiKit.styleButton(sortByTypeButton, orange);
+        UiKit.styleButton(sortByPriorityButton, orange);
 
         actions.add(initButton);
         actions.add(addButton);
@@ -172,6 +203,7 @@ public class FarmGUI extends JFrame {
         actions.add(deleteButton);
         actions.add(clearButton);
         actions.add(saveButton);
+        actions.add(saveAsButton);
         actions.add(loadButton);
         actions.add(sortByTypeButton);
         actions.add(sortByPriorityButton);
@@ -289,6 +321,7 @@ public class FarmGUI extends JFrame {
         deleteButton.addActionListener(e -> onDeleteClicked());
         clearButton.addActionListener(e -> onClearClicked());
         saveButton.addActionListener(e -> onSaveClicked());
+        saveAsButton.addActionListener(e -> onSaveAsClicked());
         loadButton.addActionListener(e -> onLoadClicked());
         sortByTypeButton.addActionListener(e -> onSortByTypeClicked());
         sortByPriorityButton.addActionListener(e -> onSortByPriorityClicked());
@@ -564,13 +597,30 @@ public class FarmGUI extends JFrame {
 
 
     /**
-     * 保存游戏。先让用户输入存档名，再在 SwingWorker 子线程中写文件，
-     * 避免大文件保存时界面卡死；完成后在 done() 中回到 EDT 刷新提示。
+     * 保存游戏。已经关联了存档（读进来的或存过一次的）就直接存回它；
+     * 还没有关联存档（新游戏第一次存）就让用户输入存档名。
      */
     private void onSaveClicked() {
         if (!requireFarm()) {
             return;
         }
+        if (currentSavePath != null) {
+            saveInBackground(currentSavePath);
+        } else {
+            saveAsNewFile();
+        }
+    }
+
+    /** 另存为：无论当前有没有关联存档，都让用户输入一个新名字另存一份。 */
+    private void onSaveAsClicked() {
+        if (!requireFarm()) {
+            return;
+        }
+        saveAsNewFile();
+    }
+
+    /** 弹框输入存档名并另存一份；成功后这个新文件成为当前存档。 */
+    private void saveAsNewFile() {
         String saveName = JOptionPane.showInputDialog(
                 this, "请输入存档名（自动追加 .txt）：", "保存游戏",
                 JOptionPane.QUESTION_MESSAGE);
@@ -630,6 +680,7 @@ public class FarmGUI extends JFrame {
             protected void done() {
                 try {
                     get(); // 触发子线程中抛出的异常
+                    currentSavePath = path; // 存成功后，之后的“保存游戏”默认存回这里
                     logEntry("保存游戏", "成功：" + path);
                 } catch (InterruptedException | ExecutionException ex) {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
@@ -655,6 +706,7 @@ public class FarmGUI extends JFrame {
             protected void done() {
                 try {
                     farm = get();
+                    currentSavePath = path; // 读进来的就成为当前存档，之后保存默认存回它
                     refreshFarmPanel();
                     showAttr(null); // 读取的新农场尚未选中对象
                     logEntry("读取存档", "成功：" + path.getFileName());
@@ -671,6 +723,7 @@ public class FarmGUI extends JFrame {
     /** IO 进行中禁用保存/读取按钮，避免重复触发。 */
     private void setActionButtonsEnabled(boolean enabled) {
         saveButton.setEnabled(enabled);
+        saveAsButton.setEnabled(enabled);
         loadButton.setEnabled(enabled);
     }
 }
