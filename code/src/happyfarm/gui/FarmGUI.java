@@ -14,11 +14,13 @@ import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
@@ -87,6 +89,9 @@ public class FarmGUI extends JFrame {
 
     // ===== 中栏 / 右栏 =====
     private JPanel farmPanel;
+    /** 右上属性板：随点击切换显示当前选中对象的 RPG 属性卡（自定义绘制）。 */
+    private AttrCardPanel attrCard;
+    /** 右下操作日志：只记录简洁的操作流水。 */
     private JTextArea resultArea;
 
     public FarmGUI(Farm farm, SaveManager saveManager) {
@@ -181,17 +186,31 @@ public class FarmGUI extends JFrame {
         return scrollPane;
     }
 
-    /** 右栏：结果显示区。 */
-    private JScrollPane buildResultPanel() {
+    /**
+     * 右栏：上下分割。上半是「属性板」，点击对象后切换显示其 RPG 属性卡；
+     * 下半是「操作日志」，记录每次操作的简洁流水。两者用 JSplitPane 分隔，
+     * 用户可拖动调整上下比例。
+     */
+    private JComponent buildResultPanel() {
+        // ---- 右上：属性板（自定义绘制的 RPG 属性卡）----
+        attrCard = new AttrCardPanel();
+        JScrollPane attrScroll = new JScrollPane(attrCard);
+        attrScroll.setBorder(BorderFactory.createTitledBorder("属性板（点击农场对象查看）"));
+        attrScroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        // ---- 右下：操作日志 ----
         resultArea = new JTextArea();
         resultArea.setEditable(false);
         resultArea.setLineWrap(true);
         resultArea.setWrapStyleWord(true);
+        JScrollPane logScroll = new JScrollPane(resultArea);
+        logScroll.setBorder(BorderFactory.createTitledBorder("操作日志"));
 
-        JScrollPane scrollPane = new JScrollPane(resultArea);
-        scrollPane.setBorder(BorderFactory.createTitledBorder("操作结果"));
-        scrollPane.setPreferredSize(new Dimension(340, 0));
-        return scrollPane;
+        JSplitPane split = new JSplitPane(
+                JSplitPane.VERTICAL_SPLIT, attrScroll, logScroll);
+        split.setResizeWeight(0.55); // 属性卡略大一些，拖动后保持比例
+        split.setPreferredSize(new Dimension(340, 0));
+        return split;
     }
 
     /** 向右侧结果区追加一行消息，并滚动到底部。 */
@@ -301,6 +320,7 @@ public class FarmGUI extends JFrame {
             int rowCount = FarmUtils.parsePositiveInt(rowField.getText(), "行数");
             farm = new Farm(rowCount);
             logEntry("初始化农场", "成功：新建 " + rowCount + " 行农场。");
+            showAttr(null); // 新农场无选中对象
             refreshFarmPanel();
         } catch (RuntimeException ex) {
             logEntry("初始化农场", "失败：" + ex.getMessage());
@@ -319,6 +339,7 @@ public class FarmGUI extends JFrame {
             FarmResult result = farm.addObject(rowIndex, position, object);
             logEntry("添加对象", result.getMessage());
             if (result.isSuccess()) {
+                showAttr(object);
                 refreshFarmPanel();
             }
         } catch (RuntimeException ex) {
@@ -340,9 +361,16 @@ public class FarmGUI extends JFrame {
         if (found.isEmpty()) {
             logEntry("查询", "未找到对象：" + keyword.trim());
         } else {
-            logEntry("查询",
-                    "关键字“" + keyword.trim() + "”匹配 " + found.size() + " 个："
-                            + System.lineSeparator() + SortUtil.formatObjects(found));
+            StringBuilder sb = new StringBuilder();
+            sb.append("关键字“").append(keyword.trim()).append("”匹配 ")
+                    .append(found.size()).append(" 个：");
+            for (FarmObject object : found) {
+                sb.append(System.lineSeparator()).append("  · ").append(object.getName())
+                        .append("（").append(object.getTypeLabel()).append("）");
+            }
+            logEntry("查询", sb.toString());
+            // 把第一个匹配对象显示到属性板，方便直接查看属性。
+            showAttr(found.get(0));
         }
     }
 
@@ -352,9 +380,12 @@ public class FarmGUI extends JFrame {
             return;
         }
         try {
-            FarmResult result = farm.careObject(readRowIndex(), readPosition());
+            int rowIndex = readRowIndex();
+            int position = readPosition();
+            FarmResult result = farm.careObject(rowIndex, position);
             logEntry("照料", result.getMessage());
             if (result.isSuccess()) {
+                showAttr(farm.getObjectAt(rowIndex, position));
                 refreshFarmPanel();
             }
         } catch (RuntimeException ex) {
@@ -371,6 +402,7 @@ public class FarmGUI extends JFrame {
             FarmResult result = farm.removeObject(readRowIndex(), readPosition());
             logEntry("删除", result.getMessage());
             if (result.isSuccess()) {
+                showAttr(null); // 对象已删除，清空属性板
                 refreshFarmPanel();
             }
         } catch (RuntimeException ex) {
@@ -385,6 +417,7 @@ public class FarmGUI extends JFrame {
         }
         FarmResult result = farm.clearFarm();
         logEntry("清空农场", result.getMessage());
+        showAttr(null); // 农场已清空，重置属性板
         refreshFarmPanel();
     }
 
@@ -406,14 +439,15 @@ public class FarmGUI extends JFrame {
                 SortUtil.formatObjects(SortUtil.sortByPriority(farm.getAllObjects())));
     }
 
-    /** 点击对象按钮后，把行号和位置同步回输入框。 */
+    /** 点击对象按钮后，把行号和位置同步回输入框，并在右上属性板切换显示该对象。 */
     private void updateSelectedPosition(int rowIndex, int position) {
         rowField.setText(String.valueOf(rowIndex + 1));
         positionField.setText(String.valueOf(position));
         FarmObject object = farm.getObjectAt(rowIndex, position);
+        showAttr(object);
         if (object != null) {
             logEntry("选中对象",
-                    "第 " + (rowIndex + 1) + " 行第 " + position + " 位" + System.lineSeparator() + object);
+                    "第 " + (rowIndex + 1) + " 行第 " + position + " 位：" + object.getName());
         }
     }
 
@@ -490,6 +524,14 @@ public class FarmGUI extends JFrame {
             return "⚒"; // ⚒
         }
         return "●"; // ● 兜底
+    }
+
+    /**
+     * 把属性卡切换到右上属性板（自定义绘制，实现「点击切换」效果）。
+     * 传 null 则恢复占位提示。具体绘制逻辑在 {@link AttrCardPanel}。
+     */
+    private void showAttr(FarmObject object) {
+        attrCard.setObject(object);
     }
 
 
@@ -586,6 +628,7 @@ public class FarmGUI extends JFrame {
                 try {
                     farm = get();
                     refreshFarmPanel();
+                    showAttr(null); // 读取的新农场尚未选中对象
                     logEntry("读取存档", "成功：" + path.getFileName());
                 } catch (InterruptedException | ExecutionException ex) {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
