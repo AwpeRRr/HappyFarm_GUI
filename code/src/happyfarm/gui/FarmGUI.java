@@ -89,6 +89,8 @@ public class FarmGUI extends JFrame {
 
     // ===== 中栏 / 右栏 =====
     private JPanel farmPanel;
+    /** 底部会动的 ASCII 农场（纯娱乐，动物随机走动）。 */
+    private AsciiFarmPanel asciiFarm;
     /** 右上属性板：随点击切换显示当前选中对象的 RPG 属性卡（自定义绘制）。 */
     private AttrCardPanel attrCard;
     /** 右下操作日志：只记录简洁的操作流水。 */
@@ -106,13 +108,15 @@ public class FarmGUI extends JFrame {
     /** 创建并布局所有组件。 */
     private void initComponents() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(960, 600);
+        setSize(1080, 740);
+        setMinimumSize(new Dimension(900, 640));
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(8, 8));
 
         add(buildLeftPanel(), BorderLayout.WEST);
         add(buildFarmPanel(), BorderLayout.CENTER);
         add(buildResultPanel(), BorderLayout.EAST);
+        add(buildAsciiFarm(), BorderLayout.SOUTH);
     }
 
     /** 左栏：输入区 + 操作按钮。 */
@@ -120,7 +124,7 @@ public class FarmGUI extends JFrame {
         JPanel leftPanel = new JPanel();
         leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
         leftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        leftPanel.setPreferredSize(new Dimension(260, 0));
+        leftPanel.setPreferredSize(new Dimension(280, 0));
 
         // ---- 输入区 ----
         JPanel form = new JPanel(new GridLayout(0, 2, 6, 6));
@@ -209,8 +213,24 @@ public class FarmGUI extends JFrame {
         JSplitPane split = new JSplitPane(
                 JSplitPane.VERTICAL_SPLIT, attrScroll, logScroll);
         split.setResizeWeight(0.55); // 属性卡略大一些，拖动后保持比例
-        split.setPreferredSize(new Dimension(340, 0));
+        split.setPreferredSize(new Dimension(360, 0));
         return split;
+    }
+
+    /** 底部：会动的 ASCII 农场，外面套个标题边框。 */
+    private JComponent buildAsciiFarm() {
+        asciiFarm = new AsciiFarmPanel();
+        asciiFarm.setBorder(BorderFactory.createTitledBorder("农场一角（动物会自己溜达）"));
+        syncAsciiFarm();
+        return asciiFarm;
+    }
+
+    /** 把当前农场所有对象同步给底部 ASCII 农场（农场为空则清空）。 */
+    private void syncAsciiFarm() {
+        if (asciiFarm == null) {
+            return;
+        }
+        asciiFarm.setObjects(farm == null ? null : farm.getAllObjects());
     }
 
     /** 向右侧结果区追加一行消息，并滚动到底部。 */
@@ -474,6 +494,9 @@ public class FarmGUI extends JFrame {
         // 重新布局并重绘，确保按钮立即显示/消失。
         farmPanel.revalidate();
         farmPanel.repaint();
+
+        // 同步底部 ASCII 农场（新增对象随机落位，消失的移除，动物保留原位）。
+        syncAsciiFarm();
     }
 
     /** 构建农场某一行的面板。 */

@@ -2,8 +2,10 @@
 # 编译产物
 code/out/
 *.class
-# 存档（运行时数据）
-code/saves/
+# 存档（运行时数据）：忽略目录下所有内容
+code/saves/*
+# 但保留一个 demo 存档，方便首次启动就能看到效果
+!code/saves/demo-快乐农场.txt
 # 文档（docx / 设计说明等，按需取消注释保留）
 *.docx
 图形化农场对象管理系统两人开发分工方案.md

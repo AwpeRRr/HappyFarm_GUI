@@ -1,0 +1,9 @@
+ROWS|3
+ITEM|1|0|ANIMAL|小黄牛|3|开心|10
+ITEM|1|1|ANIMAL|花栗鼠|2|活跃|5
+ITEM|1|2|ANIMAL|懒猫咪|1|平静|0
+ITEM|2|0|PLANT|向日葵|5|快速成长|8
+ITEM|2|1|PLANT|番茄|4|成长中|3
+ITEM|2|2|PLANT|小树苗|2|成长中|1
+ITEM|3|0|TOOL|铁锄头|2|状态良好|0
+ITEM|3|1|TOOL|喷水壶|1|可用|4
