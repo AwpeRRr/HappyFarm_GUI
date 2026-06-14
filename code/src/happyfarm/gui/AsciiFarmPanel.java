@@ -77,6 +77,13 @@ public class AsciiFarmPanel extends JPanel {
     private int lastOx = 8, lastOy = 6, lastCw = 8, lastChh = 16;
     // 正在拖的那只，没有就是 null
     private Sprite dragging;
+    // 有动物开始/结束暴走时喊一声，让属性板能跟着刷新
+    private Runnable hyperListener;
+
+    // 注册暴走变化的回调（FarmGUI 用来同步属性板）
+    public void setHyperListener(Runnable listener) {
+        this.hyperListener = listener;
+    }
 
     public AsciiFarmPanel() {
         setBackground(new Color(0xF4F6F8));
@@ -246,6 +253,7 @@ public class AsciiFarmPanel extends JPanel {
 
     // 让动物动一动。心情高的又快又勤，心情低的半天挪一下；同时心情慢慢往下掉
     private void stepAnimals() {
+        boolean hyperChanged = false;
         for (Sprite s : sprites) {
             if (!s.mobile || s == dragging) {
                 continue;
@@ -253,6 +261,9 @@ public class AsciiFarmPanel extends JPanel {
             boolean hyper = s.hyperTicks > 0;
             if (hyper) {
                 s.hyperTicks--;
+                if (s.hyperTicks == 0) {
+                    hyperChanged = true; // 刚嗨完，通知属性板还原状态
+                }
             }
             // 暴走时心情不掉，嗨完直接落回 100 以内；平时待着就蔫
             if (!hyper) {
@@ -267,9 +278,9 @@ public class AsciiFarmPanel extends JPanel {
                 continue;
             }
             if (hyper) {
-                // 满血暴走：横冲直撞，每拍都动
-                int dx = (rng.nextInt(3) - 1) * 3;
-                int dy = (rng.nextInt(3) - 1) * 3;
+                // 爽翻天：彻底癫了，横向能窜大半个场子，纵向乱蹦，绝不原地待着
+                int dx = (rng.nextInt(2) == 0 ? -1 : 1) * (6 + rng.nextInt(12));
+                int dy = (rng.nextInt(2) == 0 ? -1 : 1) * (1 + rng.nextInt(3));
                 s.col = Math.min(COLS - 2, Math.max(1, s.col + dx));
                 s.row = Math.min(ROWS - 2, Math.max(1, s.row + dy));
                 s.cooldown = 0;
@@ -284,11 +295,37 @@ public class AsciiFarmPanel extends JPanel {
             // 冷却拉开差距：满心情几乎每拍都走，没心情要歇十几拍
             s.cooldown = (100 - mood) / 6;
         }
+        if (hyperChanged && hyperListener != null) {
+            hyperListener.run();
+        }
     }
 
     // 真实心情（0–100），不是动物就当 0
     private int realMood(FarmObject o) {
         return (o instanceof Animal) ? ((Animal) o).getMood() : 0;
+    }
+
+    // 这只对象现在是不是正在暴走（给属性板查）
+    public boolean isHyper(FarmObject o) {
+        for (Sprite s : sprites) {
+            if (s.ref == o) {
+                return s.hyperTicks > 0;
+            }
+        }
+        return false;
+    }
+
+    // 暴走时在动物头顶飘一个小标签
+    private void drawHyperTag(Graphics2D g2, int px, int py) {
+        String tag = "爽翻天!";
+        Font small = new Font(Font.SANS_SERIF, Font.BOLD, 11);
+        g2.setFont(small);
+        int tw = g2.getFontMetrics().stringWidth(tag);
+        int tagX = Math.max(2, Math.min(getWidth() - tw - 2, px - tw / 2 + 4));
+        int tagY = Math.max(11, py - 2);
+        g2.setColor(new Color(0xFF2D6F));
+        g2.drawString(tag, tagX, tagY);
+        // 标签字号是临时换的，画完不用还原——下一帧 paintComponent 会重设 mono
     }
 
     @Override
@@ -347,10 +384,13 @@ public class AsciiFarmPanel extends JPanel {
 
         // 把动物植物工具画上去
         for (Sprite s : sprites) {
-            // 暴走的动物换个亮眼颜色和字形，一眼能看出来
+            // 暴走的动物：每拍乱闪字形 + 亮色 + 头顶「爽翻天」
             if (s.mobile && s.hyperTicks > 0) {
+                char[] wild = {'@', '*', '#', '%', '&'};
                 g2.setColor(new Color(0xFF2D6F));
-                g2.drawString("@", ox + s.col * cw, oy + s.row * chh + fm.getAscent());
+                g2.drawString(String.valueOf(wild[rng.nextInt(wild.length)]),
+                        ox + s.col * cw, oy + s.row * chh + fm.getAscent());
+                drawHyperTag(g2, ox + s.col * cw, oy + s.row * chh);
             } else {
                 g2.setColor(s.color);
                 g2.drawString(String.valueOf(s.glyph),

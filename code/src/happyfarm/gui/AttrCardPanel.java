@@ -27,6 +27,8 @@ public class AttrCardPanel extends JPanel {
 
     /** 当前展示的对象，null 表示无选中。 */
     private FarmObject object;
+    /** 是否处于隐藏彩蛋的「爽翻天」暴走态（由外部传入）。 */
+    private boolean hyper;
 
     // 背景与文字颜色
     private static final Color BG = new Color(0xF4F6F8);
@@ -42,7 +44,13 @@ public class AttrCardPanel extends JPanel {
 
     /** 切换展示对象并重绘。 */
     public void setObject(FarmObject object) {
+        setObject(object, false);
+    }
+
+    /** 切换展示对象，并标明它是否正处于「爽翻天」暴走态。 */
+    public void setObject(FarmObject object, boolean hyper) {
         this.object = object;
+        this.hyper = hyper && object != null;
         repaint();
     }
 
@@ -126,10 +134,14 @@ public class AttrCardPanel extends JPanel {
         drawStars(g2, rowX + 56, cy - 11, object.getPriority(), theme);
         cy += 30;
 
-        // 状态徽章
+        // 状态徽章：暴走时盖成亮眼的「爽翻天」彩蛋状态
         g2.setColor(SUB);
         g2.drawString("状态", rowX, cy);
-        drawBadge(g2, rowX + 56, cy - 14, object.getStatus(), theme);
+        if (hyper) {
+            drawBadge(g2, rowX + 56, cy - 14, "爽翻天!", new Color(0xFF2D6F));
+        } else {
+            drawBadge(g2, rowX + 56, cy - 14, object.getStatus(), theme);
+        }
         cy += 30;
 
         // 照料次数

@@ -93,6 +93,8 @@ public class FarmGUI extends JFrame {
     private AsciiFarmPanel asciiFarm;
     /** 右上属性板：随点击切换显示当前选中对象的 RPG 属性卡（自定义绘制）。 */
     private AttrCardPanel attrCard;
+    /** 属性板当前显示的对象，用于暴走态结束时刷新它。 */
+    private FarmObject attrObject;
     /** 右下操作日志：只记录简洁的操作流水。 */
     private JTextArea resultArea;
 
@@ -221,6 +223,8 @@ public class FarmGUI extends JFrame {
     private JComponent buildAsciiFarm() {
         asciiFarm = new AsciiFarmPanel();
         asciiFarm.setBorder(BorderFactory.createTitledBorder("农场一角（动物会自己溜达）"));
+        // 暴走结束时，如果属性板正显示这只动物，刷新一下把「爽翻天」还原成真实状态
+        asciiFarm.setHyperListener(() -> showAttr(attrObject));
         syncAsciiFarm();
         return asciiFarm;
     }
@@ -405,8 +409,8 @@ public class FarmGUI extends JFrame {
             FarmResult result = farm.careObject(rowIndex, position);
             logEntry("照料", result.getMessage());
             if (result.isSuccess()) {
+                refreshFarmPanel(); // 先刷新，让底部农场判定是否进入暴走
                 showAttr(farm.getObjectAt(rowIndex, position));
-                refreshFarmPanel();
             }
         } catch (RuntimeException ex) {
             logEntry("照料", "失败：" + ex.getMessage());
@@ -554,7 +558,8 @@ public class FarmGUI extends JFrame {
      * 传 null 则恢复占位提示。具体绘制逻辑在 {@link AttrCardPanel}。
      */
     private void showAttr(FarmObject object) {
-        attrCard.setObject(object);
+        attrObject = object;
+        attrCard.setObject(object, asciiFarm != null && asciiFarm.isHyper(object));
     }
 
 
