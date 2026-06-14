@@ -85,6 +85,14 @@ public class StartupMenu extends JFrame {
         root.add(menuButton("📂 读取存档", new Color(0x4F8FD0), e -> onLoad()));
         root.add(Box.createVerticalStrut(16));
         root.add(menuButton("🚪 退出", new Color(0xC65B5B), e -> System.exit(0)));
+
+        // 制作人署名
+        root.add(Box.createVerticalGlue());
+        JLabel by = new JLabel("BY 闭祖灏 · 王宏宇", SwingConstants.CENTER);
+        by.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        by.setForeground(new Color(0x4A5B4E));
+        by.setAlignmentX(Component.CENTER_ALIGNMENT);
+        root.add(by);
         return root;
     }
 
